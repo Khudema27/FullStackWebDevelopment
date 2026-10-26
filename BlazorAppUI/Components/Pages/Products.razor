@@ -1,0 +1,202 @@
+﻿@page "/products"
+@rendermode InteractiveServer
+@using BusinessLogicLayer.Interfaces
+@using Microsoft.AspNetCore.Components.Forms
+@using ProductModel = ClassLibraryModel.Products
+@inject IProductService ProductService
+
+<h3>Product Management</h3>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="alert alert-info">@message</div>
+}
+
+<div class="card mb-4">
+    <div class="card-body">
+        <h5>@(editing ? "Edit Product" : "Add Product")</h5>
+        <EditForm Model="formProduct" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="mb-3">
+                <label class="form-label">Name</label>
+                <InputText class="form-control" @bind-Value="formProduct.Name" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Description</label>
+                <InputTextArea class="form-control" @bind-Value="formProduct.Description" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Price</label>
+                <InputNumber class="form-control" @bind-Value="formProduct.Price" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Stock Quantity</label>
+                <InputNumber class="form-control" @bind-Value="formProduct.StockQuantity" />
+            </div>
+
+            <button class="btn btn-primary me-2" type="submit">
+                @(editing ? "Update Product" : "Add Product")
+            </button>
+            @if (editing)
+            {
+                <button class="btn btn-secondary" type="button" @onclick="ResetForm">
+                    Cancel
+                </button>
+            }
+        </EditForm>
+    </div>
+</div>
+
+<div class="mb-3 d-flex justify-content-between align-items-center">
+    <button class="btn btn-outline-primary" @onclick="LoadAsync">
+        Refresh List
+    </button>
+    <div class="d-flex">
+        <input class="form-control me-2" placeholder="Search..." @bind="searchKeyword" />
+        <button class="btn btn-outline-secondary" @onclick="SearchProducts">Search</button>
+    </div>
+</div>
+
+@if (products is null)
+{
+    <p>Loading products...</p>
+}
+else if (!products.Any())
+{
+    <p>No products found. Add the first product above.</p>
+}
+else
+{
+    <table class="table table-striped table-bordered">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Price</th>
+                <th>Stock</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in products)
+            {
+                <tr>
+                    <td>@p.Name</td>
+                    <td>@p.Description</td>
+                    <td>@p.Price.ToString("0.00")</td>
+                    <td>@p.StockQuantity</td>
+                    <td>
+                        <button class="btn btn-warning btn-sm me-2" @onclick="() => Edit(p)">
+                            Edit
+                        </button>
+                        <button class="btn btn-danger btn-sm" @onclick="() => DeleteAsync(p.ProductId)">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<ProductModel>? products;
+    private ProductModel formProduct = new();
+    private bool editing;
+    private string? message;
+    private string searchKeyword = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            products = await ProductService.GetAllAsync();
+        }
+        catch (Exception)
+        {
+            message = "Could not load products. Check the connection and server logs.";
+            products = new();
+        }
+    }
+
+    private async Task SearchProducts()
+    {
+        try
+        {
+            products = await ProductService.SearchAsync(searchKeyword);
+        }
+        catch (Exception)
+        {
+            message = "Search failed.";
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            if (editing)
+            {
+                await ProductService.UpdateAsync(formProduct);
+                message = "Product updated.";
+            }
+            else
+            {
+                await ProductService.CreateAsync(formProduct);
+                message = "Product added.";
+            }
+
+            ResetForm();
+            await LoadAsync();
+        }
+        catch (Exception)
+        {
+            message = "Save failed. Check the server logs and database constraints.";
+        }
+    }
+
+    private void Edit(ProductModel product)
+    {
+        formProduct = new ProductModel
+        {
+            ProductId = product.ProductId,
+            Name = product.Name,
+            Description = product.Description,
+            Price = product.Price,
+            StockQuantity = product.StockQuantity,
+            CreatedAt = product.CreatedAt
+        };
+        editing = true;
+        message = null;
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        try
+        {
+            await ProductService.DeleteAsync(id);
+            message = "Product deleted.";
+            await LoadAsync();
+        }
+        catch (Exception)
+        {
+            message = "Delete failed. Check the server logs.";
+        }
+    }
+
+    private void ResetForm()
+    {
+        formProduct = new ProductModel();
+        editing = false;
+    }
+}

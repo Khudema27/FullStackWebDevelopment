@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="BlazorAppUI/BlazorAppUI.csproj" />
+  <Project Path="BusinessLogicLayer/BusinessLogicLayer.csproj" />
+  <Project Path="ClassLibraryModel/ClassLibraryModel.csproj" />
+  <Project Path="DataAccessLayer/DataAccessLayer.csproj" />
+</Solution>
