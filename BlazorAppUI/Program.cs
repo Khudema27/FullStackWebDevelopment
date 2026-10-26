@@ -10,18 +10,16 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// 1. Connection string fetch karein
+// 1. Fetch Connection String
 var connectionString = builder.Configuration.GetConnectionString("Supabase")
     ?? throw new InvalidOperationException("Connection string 'Supabase' was not found.");
 
-// 2. DbContextFactory register karein
+// 2. Register DbContextFactory for EF Core
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// 3. Interface ko EF Core Repository par bind karein
+// 3. Register DataAccess & Business Logic layers
 builder.Services.AddScoped<IProductRepository, ProductRepositoryEF>();
-
-// Service Registration
 builder.Services.AddScoped<IProductService, ProductService>();
 
 var app = builder.Build();

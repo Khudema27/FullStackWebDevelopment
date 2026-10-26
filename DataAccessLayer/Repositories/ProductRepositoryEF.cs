@@ -46,11 +46,12 @@ public class ProductRepositoryEF : IProductRepository
     public async Task DeleteAsync(Guid id)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var product = await db.Products.FindAsync(id);
-        if (product is null) return;
-
-        db.Products.Remove(product);
-        await db.SaveChangesAsync();
+        var entity = await db.Products.FindAsync(id);
+        if (entity != null)
+        {
+            db.Products.Remove(entity);
+            await db.SaveChangesAsync();
+        }
     }
 
     public async Task<List<Products>> SearchAsync(string keyword)
