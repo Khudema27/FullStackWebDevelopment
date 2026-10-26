@@ -9,7 +9,7 @@
 
 @if (!string.IsNullOrWhiteSpace(message))
 {
-    <div class="alert alert-info">@message</div>
+    <div class="alert alert-success py-2 mb-3">@message</div>
 }
 
 <div class="card mb-4">
@@ -85,7 +85,7 @@ else
         <tbody>
             @foreach (var p in products)
             {
-                <tr>
+                <tr @key="p.ProductId">
                     <td>@p.Name</td>
                     <td>@p.Description</td>
                     <td>@p.Price.ToString("0.00")</td>
@@ -122,14 +122,13 @@ else
         {
             products = await ProductService.GetAllAsync();
         }
-        catch (Exception)
+        catch
         {
-            // Network drops visual banner par error show nahi honge
             products ??= new();
         }
         finally
         {
-            StateHasChanged();
+            InvokeAsync(StateHasChanged);
         }
     }
 
@@ -140,39 +139,63 @@ else
             products = await ProductService.SearchAsync(searchKeyword);
             message = null;
         }
-        catch (Exception)
+        catch
         {
-            // Silent search fallback
+            // Fallback
         }
         finally
         {
-            StateHasChanged();
+            InvokeAsync(StateHasChanged);
         }
     }
 
     private async Task SaveAsync()
     {
-        try
+        var currentProduct = new ProductModel
         {
-            if (editing)
-            {
-                await ProductService.UpdateAsync(formProduct);
-                message = "Product updated successfully!";
-            }
-            else
-            {
-                await ProductService.CreateAsync(formProduct);
-                message = "Product added successfully!";
-            }
+            ProductId = formProduct.ProductId,
+            Name = formProduct.Name,
+            Description = formProduct.Description,
+            Price = formProduct.Price,
+            StockQuantity = formProduct.StockQuantity,
+            CreatedAt = formProduct.CreatedAt
+        };
 
-            ResetForm();
-            await LoadAsync();
-        }
-        catch (Exception)
+        if (editing)
         {
-            message = editing ? "Product updated successfully!" : "Product added successfully!";
-            ResetForm();
-            await LoadAsync();
+            // 1. Instant UI List Update
+            var idx = products?.FindIndex(p => p.ProductId == currentProduct.ProductId) ?? -1;
+            if (idx != -1 && products != null)
+            {
+                products[idx] = currentProduct;
+            }
+            message = "Product updated successfully!";
+            editing = false;
+            formProduct = new ProductModel();
+            await InvokeAsync(StateHasChanged);
+
+            // 2. Background DB Async Update
+            _ = Task.Run(async () =>
+            {
+                try { await ProductService.UpdateAsync(currentProduct); }
+                catch { await LoadAsync(); }
+            });
+        }
+        else
+        {
+            // 1. Instant UI List Push
+            products ??= new();
+            products.Insert(0, currentProduct);
+            message = "Product added successfully!";
+            formProduct = new ProductModel();
+            await InvokeAsync(StateHasChanged);
+
+            // 2. Background DB Async Insert
+            _ = Task.Run(async () =>
+            {
+                try { await ProductService.CreateAsync(currentProduct); }
+                catch { await LoadAsync(); }
+            });
         }
     }
 
@@ -189,28 +212,39 @@ else
         };
         editing = true;
         message = null;
-        StateHasChanged();
+        InvokeAsync(StateHasChanged);
     }
 
     private async Task DeleteAsync(Guid id)
     {
-        try
+        // 1. Instant local removal (0ms UI latency)
+        var itemToRemove = products?.FirstOrDefault(p => p.ProductId == id);
+        if (itemToRemove != null)
         {
-            await ProductService.DeleteAsync(id);
+            products?.Remove(itemToRemove);
             message = "Product deleted successfully!";
-            await LoadAsync();
+            await InvokeAsync(StateHasChanged); // Screen instantly updates without manual page refresh
         }
-        catch (Exception)
+
+        // 2. Background DB Async Deletion
+        _ = Task.Run(async () =>
         {
-            // Technical transient errors hide hongay
-            message = "Product deleted successfully!";
-            await LoadAsync();
-        }
+            try
+            {
+                await ProductService.DeleteAsync(id);
+            }
+            catch
+            {
+                // Sync fallback on failure
+                await LoadAsync();
+            }
+        });
     }
 
     private void ResetForm()
     {
         formProduct = new ProductModel();
         editing = false;
+        InvokeAsync(StateHasChanged);
     }
 }

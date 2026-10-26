@@ -19,14 +19,14 @@ public class ProductRepositoryEF : IProductRepository
         await using var db = await _factory.CreateDbContextAsync();
         return await db.Products
             .AsNoTracking()
-            .OrderBy(p => p.Name)
+            .OrderByDescending(p => p.CreatedAt)
             .ToListAsync();
     }
 
     public async Task<Products?> GetByIdAsync(Guid id)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        return await db.Products.FindAsync(id);
+        return await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.ProductId == id);
     }
 
     public async Task AddAsync(Products product)
@@ -46,12 +46,10 @@ public class ProductRepositoryEF : IProductRepository
     public async Task DeleteAsync(Guid id)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var entity = await db.Products.FindAsync(id);
-        if (entity != null)
-        {
-            db.Products.Remove(entity);
-            await db.SaveChangesAsync();
-        }
+        // Fast direct entity stub deletion without extra query lookup
+        var stub = new Products { ProductId = id };
+        db.Products.Remove(stub);
+        await db.SaveChangesAsync();
     }
 
     public async Task<List<Products>> SearchAsync(string keyword)
@@ -63,7 +61,7 @@ public class ProductRepositoryEF : IProductRepository
         return await db.Products
             .AsNoTracking()
             .Where(p => p.Name.Contains(keyword) || (p.Description != null && p.Description.Contains(keyword)))
-            .OrderBy(p => p.Name)
+            .OrderByDescending(p => p.CreatedAt)
             .ToListAsync();
     }
 }
